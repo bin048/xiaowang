@@ -5,6 +5,13 @@
 > *A local-first personal memory workspace. Files dropped on a desktop companion are bound to a specific person at creation time, archived transactionally, and turned into an evidence-cited profile — never silently re-attributed to someone else.*
 
 <p align="center">
+  <a href="https://xiaowang-ai-memory.app.workbuddy.host/?sharecode=CJZIJV4FEN"><img src="https://img.shields.io/badge/在线演示-打开页面-2ee6a0?style=flat-square" alt="在线演示"></a>
+  <img src="https://img.shields.io/badge/自动化用例-46%2F46-2ee6a0?style=flat-square" alt="46/46">
+  <img src="https://img.shields.io/badge/网络-仅本机回环-7aa2ff?style=flat-square" alt="本地优先">
+  <img src="https://img.shields.io/badge/平台-macOS%20%2B%20Electron-e9ecef?style=flat-square" alt="macOS">
+</p>
+
+<p align="center">
   <img src="文档/截图/01-信息渡口-人物预设.png" alt="信息渡口与人物预设" width="820">
 </p>
 
