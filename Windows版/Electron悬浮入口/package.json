@@ -1,0 +1,15 @@
+{
+  "name": "xiaowang-m11-entry",
+  "version": "1.1.0",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "node start.js"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "devDependencies": {
+    "electron": "45.2.3"
+  }
+}

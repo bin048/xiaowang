@@ -1,0 +1,79 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'none'"><title>小王系统悬浮入口</title><style>
+*{box-sizing:border-box}body{margin:0;background:transparent;color:#e5ecff;font:12px 'Microsoft YaHei',sans-serif;user-select:none;overflow:hidden}#pet{width:150px;height:150px;margin:0 auto;cursor:grab}svg{width:100%;height:100%}.g-band{fill:none;stroke:url(#gBand);stroke-width:5;stroke-linecap:round}.g-halo{fill:none;stroke:#63bcff;stroke-width:9;opacity:.15}.g-dot{fill:#a8e6ff}.g-track,.g-prog{display:none}#status{margin:0 6px;padding:7px;background:#1a2037ed;border:1px solid #5a72ad;color:#d9e8ff;min-height:51px;text-align:center;font-size:11px;line-height:1.5;overflow-wrap:anywhere}body.drop #pet{filter:drop-shadow(0 0 7px #51aaff)}
+</style><div id="pet" title="拖动移动，单击打开菜单；也可拖入文件或选中的文本"><svg id="face" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <linearGradient id="gBand" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#2a6fc4"/><stop offset=".28" stop-color="#63bcff"/>
+          <stop offset=".5" stop-color="#eaf8ff"/><stop offset=".72" stop-color="#63bcff"/>
+          <stop offset="1" stop-color="#2a6fc4"/>
+        </linearGradient>
+        <linearGradient id="gShell" x1=".1" y1="0" x2=".9" y2="1">
+          <stop offset="0" stop-color="#ffffff"/><stop offset=".36" stop-color="#f4f7ff"/>
+          <stop offset=".72" stop-color="#d6e0f2"/><stop offset="1" stop-color="#aab9d6"/>
+        </linearGradient>
+        <radialGradient id="gSheen" cx=".28" cy=".18" r=".78">
+          <stop offset="0" stop-color="#ffffff" stop-opacity=".72"/>
+          <stop offset=".5" stop-color="#ffffff" stop-opacity=".12"/>
+          <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="gScreen" cx=".38" cy=".24" r=".88">
+          <stop offset="0" stop-color="#2a3a70"/><stop offset=".5" stop-color="#16224a"/>
+          <stop offset="1" stop-color="#080e26"/>
+        </radialGradient>
+        <linearGradient id="gMetal" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#f0f6ff"/><stop offset=".45" stop-color="#adc3e6"/>
+          <stop offset="1" stop-color="#6f88b8"/>
+        </linearGradient>
+        <linearGradient id="gRim" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#ffffff" stop-opacity=".9"/>
+          <stop offset=".5" stop-color="#9fb3d8" stop-opacity=".2"/>
+          <stop offset="1" stop-color="#cfe4ff" stop-opacity=".7"/>
+        </linearGradient>
+        <radialGradient id="gLamp" cx=".35" cy=".3" r=".75">
+          <stop offset="0" stop-color="#f2fbff"/><stop offset=".45" stop-color="#63bcff"/>
+          <stop offset="1" stop-color="#2b6fc4"/>
+        </radialGradient>
+        <radialGradient id="gShadow">
+          <stop offset="0" stop-color="#050918" stop-opacity=".55"/>
+          <stop offset="1" stop-color="#050918" stop-opacity="0"/>
+        </radialGradient>
+        <filter id="gBlur" x="-80%" y="-200%" width="260%" height="500%"><feGaussianBlur stdDeviation="3.2"/></filter>
+        <filter id="gSoft" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="1.2"/></filter>
+        <path id="gBodyPath" d="M96 34 C142 34 168 62 168 100 C168 134 138 160 96 162 C54 160 24 134 24 100 C24 62 50 34 96 34 Z"/>
+        <clipPath id="gBodyClip"><path d="M96 34 C142 34 168 62 168 100 C168 134 138 160 96 162 C54 160 24 134 24 100 C24 62 50 34 96 34 Z"/></clipPath>
+      </defs>
+
+      <g class="g-full">
+        <ellipse cx="96" cy="172" rx="58" ry="9" fill="url(#gShadow)"/>
+        <!-- 偏右一根短天线 + 冰蓝小灯 -->
+        <path d="M126 46 L132 20" stroke="url(#gMetal)" stroke-width="4.5" stroke-linecap="round"/>
+        <circle cx="133" cy="17" r="11" fill="#63bcff" opacity=".3" filter="url(#gBlur)"/>
+        <circle class="g-lamp" cx="133" cy="17" r="6.5" fill="url(#gLamp)" stroke="#eaf8ff" stroke-width="1"/>
+        <!-- 只有左侧一枚金属小耳片，右侧刻意留空 -->
+        <ellipse class="g-tab" cx="30" cy="98" rx="11" ry="19" fill="url(#gMetal)" stroke="#7f97c0" stroke-width="1"/>
+        <ellipse cx="27" cy="92" rx="3.5" ry="10" fill="#ffffff" opacity=".35"/>
+        <!-- 一体成型的釉面身体，底部圆弧，没有腿、没有头身分界 -->
+        <use href="#gBodyPath" fill="url(#gShell)"/>
+        <use href="#gBodyPath" fill="url(#gSheen)"/>
+        <use href="#gBodyPath" fill="none" stroke="url(#gRim)" stroke-width="2"/>
+        <path d="M40 74 Q46 48 78 42 Q58 56 52 88 Z" fill="#ffffff" opacity=".6"
+              filter="url(#gSoft)" clip-path="url(#gBodyClip)"/>
+        <ellipse cx="96" cy="152" rx="52" ry="13" fill="#8fb6ff" opacity=".13"
+                 filter="url(#gBlur)" clip-path="url(#gBodyClip)"/>
+        <!-- 深靛蓝横向椭圆面罩 -->
+        <ellipse cx="96" cy="96" rx="59" ry="43" fill="#0a1024" opacity=".3"/>
+        <ellipse cx="96" cy="94" rx="56" ry="40" fill="url(#gScreen)" stroke="#6b83c0" stroke-width="1.6"/>
+        <path d="M48 74 Q96 50 144 74 Q96 62 48 74 Z" fill="#dff1ff" opacity=".09" filter="url(#gSoft)"/>
+        <ellipse cx="96" cy="94" rx="56" ry="40" fill="none" stroke="#dff1ff" stroke-width="1" opacity=".2"/>
+        <!-- 两道弯弯笑眼 + 一颗小光点当嘴 -->
+        <path class="g-halo" d="M66 96 Q78 84 90 96 M102 96 Q114 84 126 96"/>
+        <path class="g-band" d="M66 96 Q78 84 90 96 M102 96 Q114 84 126 96"/>
+        <circle class="g-dot" cx="96" cy="112" r="2.8"/>
+        <!-- 读文件时笑眼让位给进度槽 -->
+        <rect class="g-track" x="68" y="92" width="56" height="5" rx="2.5"/>
+        <rect class="g-prog" x="68" y="92" width="56" height="5" rx="2.5"/>
+        <!-- 方形小铭牌，一道细蓝线 -->
+        <rect x="87" y="140" width="18" height="11" rx="2.5" fill="url(#gMetal)" stroke="#7f97c0" stroke-width=".8"/>
+        <path d="M91 145.5 h10" stroke="#40a6f8" stroke-width="1.6" stroke-linecap="round"/>
+      </g>
+    </svg></div><div id="status">正在连接本机入口</div><script src="renderer.js"></script></html>

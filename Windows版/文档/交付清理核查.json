@@ -1,0 +1,10 @@
+{
+  "privateDataIncluded": false,
+  "runtimeDatabasesIncluded": false,
+  "pairingSecretsIncluded": false,
+  "nodeModulesIncluded": false,
+  "temporaryTransferConfigIncluded": false,
+  "textUserPathsRedacted": true,
+  "syntheticReproEvidenceRetained": true,
+  "windowsEvidenceSeparateFromMac": true
+}

@@ -1,0 +1,13 @@
+test_capture_scope_and_retry (test_service.TransportTests) ... ok
+test_disk_reopen_preserves_queue_and_ack (test_service.TransportTests) ... ok
+test_duplicate_bind_does_not_rotate_pairing (test_service.TransportTests) ... ok
+test_file_roundtrip_magic_and_size (test_service.TransportTests) ... ok
+test_receipt_is_required_and_immutable (test_service.TransportTests) ... ok
+test_revoke_invalidates_both_roles_and_retains_data (test_service.TransportTests) ... ok
+test_same_id_retry_conflict_and_same_body_distinct_events (test_service.TransportTests) ... ok
+test_unauthorized_origin_roles_and_host (test_service.TransportTests) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 4.143s
+
+OK

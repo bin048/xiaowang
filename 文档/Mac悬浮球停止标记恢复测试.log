@@ -1,0 +1,6 @@
+test_actual_electron_quit_and_restart (test_desktop_restart.RestartTests) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 6.603s
+
+OK

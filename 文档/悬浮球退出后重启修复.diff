@@ -1,0 +1,127 @@
+--- 原版本/Windows本地服务/本地投递服务.py
++++ Mac调试版/Windows本地服务/本地投递服务.py
+@@ -1,5 +1,5 @@
+ """M1.1 delivery transport only. No WeChat access, subprocess capture, or people database."""
+-import argparse,base64,hashlib,json,os,re,secrets,socket,sqlite3,threading,time,uuid
++import argparse,base64,hashlib,json,os,re,secrets,socket,sqlite3,threading,time,uuid,subprocess
+ from contextlib import contextmanager
+ from datetime import datetime,timezone
+ from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
+@@ -106,9 +106,29 @@
+  def counts(self):
+   with self.connect() as db:return dict(db.execute('SELECT status,COUNT(*) FROM deliveries GROUP BY status').fetchall())
+ 
++class DesktopLaunchError(Exception):pass
++
++class DesktopLauncher:
++ """Only launch the local entry selected at service startup; never accept web paths/commands."""
++ def __init__(self,executable,entry,folder):
++  self.executable=Path(executable).resolve();self.entry=Path(entry).resolve();self.folder=Path(folder).resolve();self.child=None;self.lock=threading.Lock()
++  if not self.executable.is_file() or not (self.entry/'main.js').is_file():raise ValueError('desktop_entry_missing')
++ def exited(self):return self.child is not None and self.child.poll() is not None
++ def launch(self):
++  with self.lock:
++   if self.child is not None and self.child.poll() is None:return
++   (self.folder/'停止悬浮.flag').unlink(missing_ok=True)
++   env=dict(os.environ,XW_DATA_DIR=str(self.folder));env.pop('ELECTRON_RUN_AS_NODE',None)
++   try:
++    with open(self.folder/'悬浮入口运行.log','ab') as log:
++     self.child=subprocess.Popen([str(self.executable),str(self.entry)],cwd=str(self.entry),env=env,stdin=subprocess.DEVNULL,stdout=log,stderr=log,start_new_session=True)
++   except OSError:raise DesktopLaunchError('desktop_launch_failed')
++
+ class State:
+- def __init__(self,folder,html,port):
++ def __init__(self,folder,html,port,launcher=None):
+   self.store=Store(folder);self.html=Path(html);self.origin=f'http://127.0.0.1:{port}';self.tokens={'desktop':secrets.token_urlsafe(32),'h5':secrets.token_urlsafe(32),'manager':secrets.token_urlsafe(32)};self.revoked=False;self.presence=0;self.desktop_visible=None;self.desktop_command=None;self.desktop_applied=None;self.auth_file=Path(folder)/'本机配对.json'
++  self.launcher=launcher
++ def desktop_online(self):return self.presence>0 and time.monotonic()-self.presence<8 and not (self.launcher and self.launcher.exited())
+  def write_auth(self):
+   value={'origin':self.origin,'tokens':self.tokens,'revoked':self.revoked,'created_at':now()};temp=self.auth_file.with_suffix('.tmp')
+   with open(temp,'w',encoding='utf-8') as f:
+@@ -125,8 +145,8 @@
+   if os.name=='nt':self.socket.setsockopt(socket.SOL_SOCKET,socket.SO_EXCLUSIVEADDRUSE,1)
+   super().server_bind()
+ 
+-def create_server(folder,html,port=8915):
+- state=State(folder,html,port)
++def create_server(folder,html,port=8915,launcher=None):
++ state=State(folder,html,port,launcher)
+  class H(BaseHTTPRequestHandler):
+   protocol_version='HTTP/1.1'
+   def setup(self):super().setup();self.connection.settimeout(8)
+@@ -156,7 +176,7 @@
+    if not role:return
+    try:
+     if self.path=='/api/lists':return self.send({'sources':[{'id':'synthetic-group','name':'虚构测试群','mode':'synthetic'}],'private_chat_capture':False})
+-    if self.path in ['/api/status','/ping']:return self.send({'service':'xiaowang-delivery','version':'1.1','queue':state.store.counts(),'desktop_available':state.presence>0 and time.monotonic()-state.presence<8,'desktop_visible':state.desktop_visible if time.monotonic()-state.presence<8 else None,'desktop_control_pending':bool(state.desktop_command),'desktop_applied':state.desktop_applied,'capture_mode':'synthetic-and-user-provided-only'})
++    if self.path in ['/api/status','/ping']:return self.send({'service':'xiaowang-delivery','version':'1.1','queue':state.store.counts(),'desktop_available':state.desktop_online(),'desktop_launchable':state.launcher is not None,'desktop_visible':state.desktop_visible if state.desktop_online() else None,'desktop_control_pending':bool(state.desktop_command),'desktop_applied':state.desktop_applied,'capture_mode':'synthetic-and-user-provided-only'})
+     if self.path=='/api/pending' and role=='h5':return self.send({'deliveries':state.store.pending()})
+     if re.fullmatch(r'/api/events/[0-9a-f-]{36}',self.path) and role=='desktop':return self.send(state.store.get(self.path.rsplit('/',1)[1]))
+     if re.fullmatch(r'/api/files/[0-9a-f-]{36}',self.path) and role=='h5':
+@@ -177,7 +197,9 @@
+     if self.path=='/api/ack' and role=='h5':return self.send(state.store.ack(v))
+     if self.path=='/api/desktop-control' and role=='h5':
+      if not isinstance(v,dict) or set(v)!={'visible'} or type(v['visible']) is not bool:raise ValueError('visible_boolean_required')
+-     if not state.presence or time.monotonic()-state.presence>=8:return self.send({'error':'desktop_offline'},409)
++     if not state.desktop_online():
++      if not v['visible'] or not state.launcher:return self.send({'error':'desktop_offline'},409)
++      state.launcher.launch()
+      command={'id':secrets.token_hex(16),'visible':v['visible']}
+      state.desktop_command={**command,'expires':time.monotonic()+15}
+      return self.send({'command_id':command['id'],'status':'waiting-desktop'},202)
+@@ -204,6 +226,7 @@
+      if self.path=='/api/stop':threading.Thread(target=self.server.shutdown,daemon=True).start()
+      return
+     self.send({'error':'not_found_or_forbidden'},404)
++   except DesktopLaunchError:self.send({'error':'desktop_launch_failed'},503)
+    except FileExistsError:self.send({'error':'immutable_id_conflict'},409)
+    except KeyError:self.send({'error':'not_found'},404)
+    except (ValueError,TypeError,UnicodeError):self.send({'error':'invalid_input'},400)
+@@ -214,9 +237,13 @@
+ 
+ def default_folder():return Path(os.environ.get('LOCALAPPDATA',str(Path(__file__).parent)))/'小王M1.1运行数据'
+ def main():
+- p=argparse.ArgumentParser();p.add_argument('--data-dir',type=Path,default=default_folder());p.add_argument('--port',type=int,default=8915);p.add_argument('--html',type=Path,default=Path(__file__).resolve().parents[1]/'小王M1.1_桌面联动.html');a=p.parse_args()
++ p=argparse.ArgumentParser();p.add_argument('--data-dir',type=Path,default=default_folder());p.add_argument('--port',type=int,default=8915);p.add_argument('--html',type=Path,default=Path(__file__).resolve().parents[1]/'小王M1.1_桌面联动.html')
++ p.add_argument('--desktop-executable',type=Path);p.add_argument('--desktop-entry',type=Path);a=p.parse_args()
++ if bool(a.desktop_executable)!=bool(a.desktop_entry):p.error('悬浮入口配置需同时指定程序和目录')
+  if not a.html.is_file():p.error('主HTML不存在，请先构建')
+- try:server=create_server(a.data_dir,a.html,a.port)
++ a.data_dir.mkdir(parents=True,exist_ok=True)
++ launcher=DesktopLauncher(a.desktop_executable,a.desktop_entry,a.data_dir) if a.desktop_entry else None
++ try:server=create_server(a.data_dir,a.html,a.port,launcher)
+  except OSError:p.exit(1,'服务无法绑定指定端口或写入运行目录；请检查是否已启动。\n')
+  print('小王交接服务已启动；仅用户主动提供资料和虚构消息。',flush=True);print('本机页面：'+server.state.origin+'/小王.html',flush=True);print('使用悬浮入口打开已配对页面；Ctrl+C关闭，未接收记录保留。',flush=True)
+  try:server.serve_forever()
+--- 原版本/源码/delivery-ui.js
++++ Mac调试版/源码/delivery-ui.js
+@@ -3,8 +3,8 @@
+ const KEY='xiaowang-m11-pair',RECEIVER='xiaowang-m11-receiver';let token='',active=false,working=false,status='本地入口未连接',desktop=false,last='',open=false,timer=null,captureID=null,visible=null,control=null,controlMessage='';
+ const E=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ function refresh(){root.__xw?.refresh?.()}
+-function render(){return `<section class="bw-card" id="delivery-panel"><div class="bw-card-head"><div><strong>桌面资料入口</strong><p class="bw-hint" id="delivery-status">${E(status)}${desktop?(visible===true?' · 桌面悬浮球已显示':visible===false?' · 桌面悬浮球已隐藏':' · 悬浮入口在线'):''}</p>${controlMessage?`<p class="bw-hint">${E(controlMessage)}</p>`:''}${last?`<p class="bw-hint">${E(last)}</p>`:''}</div><div class="bw-actions"><button class="aud-mini" role="switch" aria-label="桌面悬浮球" aria-checked="${visible===true}" data-delivery="${visible===true?'hide-pet':'show-pet'}" ${control?'disabled':''}>${control?'正在切换…':visible===true?'隐藏桌面悬浮球':'显示桌面悬浮球'}</button>${visible===true?'<button class="aud-mini" data-delivery="show-pet">找回悬浮球</button>':''}<button class="aud-mini" data-delivery="${active?'pause':'connect'}">${active?'暂停接收':'连接并接收'}</button><button class="aud-mini" data-delivery="sample">接收虚构消息</button></div></div><details ${open?'open':''} id="delivery-help"><summary>连接与停止</summary><p class="bw-hint">从桌面悬浮入口或一键启动程序打开小王即可配对。直接双击HTML仍可手动使用。暂停接收不会丢弃服务队列；恢复后继续。服务退出不影响已保存资料。</p><button class="aud-mini danger" data-delivery="revoke">撤销本机配对</button></details></section>`}
+-async function request(path,method='GET',body=null,binary=false){if(location.protocol!=='http:'||location.hostname!=='127.0.0.1'||!token)throw Error('请从悬浮入口重新打开已配对的小王');const r=await fetch(path,{method,headers:{Authorization:'Bearer '+token,...(body!==null?{'Content-Type':'application/json'}:{})},...(body!==null?{body:JSON.stringify(body)}:{}),credentials:'omit',signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error(r.status===401?'配对已失效，请从悬浮入口重新打开小王':r.status===409?'投递标识冲突，请保留记录并检查':'连接失败，资料保留待重试');return binary?r.arrayBuffer():r.json()}
++function render(){return `<section class="bw-card" id="delivery-panel"><div class="bw-card-head"><div><strong>桌面资料入口</strong><p class="bw-hint" id="delivery-status">${E(status)}${desktop?(visible===true?' · 桌面悬浮球已显示':visible===false?' · 桌面悬浮球已隐藏':' · 悬浮入口在线'):''}</p>${controlMessage?`<p class="bw-hint">${E(controlMessage)}</p>`:''}${last?`<p class="bw-hint">${E(last)}</p>`:''}</div><div class="bw-actions"><button class="aud-mini" role="switch" aria-label="桌面悬浮球" aria-checked="${visible===true}" data-delivery="${visible===true?'hide-pet':'show-pet'}" ${control?'disabled':''}>${control?'正在切换…':visible===true?'隐藏桌面悬浮球':desktop?'显示桌面悬浮球':'启动桌面悬浮球'}</button>${visible===true?'<button class="aud-mini" data-delivery="show-pet">找回悬浮球</button>':''}<button class="aud-mini" data-delivery="${active?'pause':'connect'}">${active?'暂停接收':'连接并接收'}</button><button class="aud-mini" data-delivery="sample">接收虚构消息</button></div></div><details ${open?'open':''} id="delivery-help"><summary>连接与停止</summary><p class="bw-hint">从桌面悬浮入口或一键启动程序打开小王即可配对。退出悬浮入口后，可用上方开关重新启动。直接双击HTML仍可手动使用。暂停接收不会丢弃服务队列；恢复后继续。服务退出不影响已保存资料。</p><button class="aud-mini danger" data-delivery="revoke">撤销本机配对</button></details></section>`}
++async function request(path,method='GET',body=null,binary=false){if(location.protocol!=='http:'||location.hostname!=='127.0.0.1'||!token)throw Error('请从悬浮入口重新打开已配对的小王');const r=await fetch(path,{method,headers:{Authorization:'Bearer '+token,...(body!==null?{'Content-Type':'application/json'}:{})},...(body!==null?{body:JSON.stringify(body)}:{}),credentials:'omit',signal:AbortSignal.timeout(10000)});if(!r.ok){const failure=await r.json().catch(()=>({}));if(failure.error==='desktop_offline')throw Error('悬浮入口未配置，请用本机启动程序打开小王');if(failure.error==='desktop_launch_failed')throw Error('悬浮球启动失败，请用本机启动程序重试；资料仍保留');throw Error(r.status===401?'配对已失效，请从悬浮入口重新打开小王':r.status===409?'投递标识冲突，请保留记录并检查':'连接失败，资料保留待重试')}return binary?r.arrayBuffer():r.json()}
+ function receiver(){let id=localStorage.getItem(RECEIVER);if(!id){id=crypto.randomUUID();localStorage.setItem(RECEIVER,id)}return id}
+ const canonical=v=>JSON.stringify(sort(v));function sort(v){if(Array.isArray(v))return v.map(sort);if(v&&typeof v==='object')return Object.fromEntries(Object.keys(v).sort().map(k=>[k,sort(v[k])]));return v}
+ async function fileData(envelope){const e=envelope.event,c=e.content;const buffer=await request('/api/files/'+e.event_id,'GET',null,true);if(buffer.byteLength!==c.size)throw Error('附件长度不符，未接收');const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',buffer))].map(x=>x.toString(16).padStart(2,'0')).join('');if(hash!==c.sha256)throw Error('附件指纹不符，未接收');try{const p=await XWH5FileParser.parseFile(new File([buffer],c.name,{type:c.mime}));return {...p,status:p.status||'ok'}}catch(err){return {name:c.name,kind:c.name.split('.').pop(),text:'【附件已接收，正文提取失败】\n文件：'+c.name+'\n原因：'+String(err.message).slice(0,300),segments:[],status:'failed',warnings:['附件原件保留在本地服务；未将占位提示当作成功提取正文。']}}}
+@@ -15,8 +15,8 @@
+  // Receipt is returned by the IDB transaction, never by the HTTP send operation.
+  await request('/api/ack','POST',receipt);return receipt;
+ }
+-async function sync(){if(working||!token||!root.__xw?.h5()?.ready)return;working=true;const old=[status,desktop,last,visible,controlMessage,control?.id].join('|');try{const s=await request('/api/status');desktop=s.desktop_available===true;visible=desktop?s.desktop_visible:null;if(control){if(s.desktop_applied===control.id&&visible===control.visible){controlMessage=visible?'桌面悬浮球已显示在当前屏幕右侧':'桌面悬浮球已隐藏，可随时打开';control=null}else if(Date.now()-control.started>12000||!desktop){controlMessage='悬浮程序未确认，请确认已启动后重试';control=null}}const {deliveries}=active?await request('/api/pending'):{deliveries:[]};let count=0;for(const d of deliveries){if(!active)break;await receive(d);count++}status=active?'本机入口已连接':'接收已暂停；悬浮球开关仍可使用';if(count)last='小王已收到并保存 '+count+' 份投递，可在资料记录中查看';}catch(e){status=e.message;desktop=false;visible=null;if(control){control=null;controlMessage='无法连接悬浮程序，请启动本地联动组件后重试'}}finally{working=false;if(old!==[status,desktop,last,visible,controlMessage,control?.id].join('|'))refresh()}}
+-async function action(a){try{if(a==='show-pet'||a==='hide-pet'){if(control)return;control={id:'requesting',visible:a==='show-pet',started:Date.now()};controlMessage='等待桌面悬浮程序确认…';refresh();const s=await request('/api/status');if(!s.desktop_available)throw Error('悬浮程序未运行，请先启动本地联动组件');const desired=a==='show-pet',r=await request('/api/desktop-control','POST',{visible:desired});control={id:r.command_id,visible:desired,started:Date.now()};controlMessage='等待桌面悬浮程序确认…';refresh();return}if(a==='connect'){active=true;sessionStorage.setItem('xiaowang-m11-active','1');await sync()}if(a==='pause'){active=false;sessionStorage.setItem('xiaowang-m11-active','0');status='接收已暂停；待投递资料仍保留';refresh()}if(a==='sample'){if(!token)throw Error('请先从本机悬浮入口打开小王');captureID=captureID||crypto.randomUUID();await request('/api/capture','POST',{request_id:captureID,source_id:'synthetic-group',days:2});captureID=null;active=true;await sync()}if(a==='revoke'){if(!confirm('撤销本机配对？未接收资料会保留，需重新启动服务才能再次配对。'))return;await request('/api/revoke','POST',{});token='';active=false;sessionStorage.removeItem(KEY);status='本机配对已撤销，资料保留';refresh()}}catch(e){control=null;controlMessage='';status=e.message;refresh()}}
++async function sync(){if(working||!token||!root.__xw?.h5()?.ready)return;working=true;const old=[status,desktop,last,visible,controlMessage,control?.id].join('|');try{const s=await request('/api/status');desktop=s.desktop_available===true;visible=desktop?s.desktop_visible:null;if(!desktop&&!control)controlMessage='悬浮球未运行，可点击重新启动';if(control){if(s.desktop_applied===control.id&&visible===control.visible){controlMessage=visible?'桌面悬浮球已显示在当前屏幕右侧':'桌面悬浮球已隐藏，可随时打开';control=null}else if(Date.now()-control.started>15000){controlMessage='悬浮程序未确认，请确认已启动后重试';control=null}}const {deliveries}=active?await request('/api/pending'):{deliveries:[]};let count=0;for(const d of deliveries){if(!active)break;await receive(d);count++}status=active?'本机入口已连接':'接收已暂停；悬浮球开关仍可使用';if(count)last='小王已收到并保存 '+count+' 份投递，可在资料记录中查看';}catch(e){status=e.message;desktop=false;visible=null;if(control){control=null;controlMessage='无法连接悬浮程序，请启动本地联动组件后重试'}}finally{working=false;if(old!==[status,desktop,last,visible,controlMessage,control?.id].join('|'))refresh()}}
++async function action(a){try{if(a==='show-pet'||a==='hide-pet'){if(control)return;control={id:'requesting',visible:a==='show-pet',started:Date.now()};controlMessage='等待桌面悬浮程序确认…';refresh();const s=await request('/api/status');if(!s.desktop_available&&!s.desktop_launchable)throw Error('悬浮入口未配置，请用本机启动程序打开小王');const desired=a==='show-pet',r=await request('/api/desktop-control','POST',{visible:desired});control={id:r.command_id,visible:desired,started:Date.now()};controlMessage='等待桌面悬浮程序确认…';refresh();return}if(a==='connect'){active=true;sessionStorage.setItem('xiaowang-m11-active','1');await sync()}if(a==='pause'){active=false;sessionStorage.setItem('xiaowang-m11-active','0');status='接收已暂停；待投递资料仍保留';refresh()}if(a==='sample'){if(!token)throw Error('请先从本机悬浮入口打开小王');captureID=captureID||crypto.randomUUID();await request('/api/capture','POST',{request_id:captureID,source_id:'synthetic-group',days:2});captureID=null;active=true;await sync()}if(a==='revoke'){if(!confirm('撤销本机配对？未接收资料会保留，需重新启动服务才能再次配对。'))return;await request('/api/revoke','POST',{});token='';active=false;sessionStorage.removeItem(KEY);status='本机配对已撤销，资料保留';refresh()}}catch(e){control=null;controlMessage='';status=e.message;refresh()}}
+ document.addEventListener('toggle',e=>{if(e.target.id==='delivery-help'&&e.target.isConnected)open=e.target.open},true);
+ document.addEventListener('click',e=>{const b=e.target.closest('[data-delivery]');if(!b)return;e.preventDefault();void action(b.dataset.delivery)});
+ function start(){try{const hash=new URLSearchParams(location.hash.slice(1));if(hash.has('xw_pair')){token=hash.get('xw_pair');history.replaceState(null,'',location.pathname+location.search);if(!/^[A-Za-z0-9_-]{40,100}$/.test(token)){token='';throw Error('配对码格式无效')}sessionStorage.setItem(KEY,token);sessionStorage.setItem('xiaowang-m11-active','1')}else token=sessionStorage.getItem(KEY)||'';active=!!token&&sessionStorage.getItem('xiaowang-m11-active')!=='0';}catch{status='本机配对未建立，手动输入仍可用'}
+--- 原版本/Electron悬浮入口/main.js
++++ Mac调试版/Electron悬浮入口/main.js
+@@ -86,4 +86,5 @@
+  interval=setInterval(()=>{if(fs.existsSync(path.join(DIR,'停止悬浮.flag'))){fs.rmSync(path.join(DIR,'停止悬浮.flag'),{force:true});app.quit();return}void sync()},2000);void sync();
+  if(process.argv.includes('--test'))globalThis.XWEntryTest={getWindow:()=>pet,getQueue:()=>queue,openComposer,addFile,sync,hide:()=>pet.hide(),show:()=>pet.show(),dir:DIR};
+ }
++app.on('activate',()=>showPet());
+ app.on('before-quit',()=>{quitting=true;clearInterval(interval);clearInterval(dragTimer);tray?.destroy()});app.on('window-all-closed',()=>app.quit());

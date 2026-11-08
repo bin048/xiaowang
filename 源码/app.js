@@ -26,13 +26,27 @@ a.docs=[{id:id(),title:'学术交流讲话节选 · 示例',source:'虚构演示
 a.facts=[makeFact(0,'职位','大学教师 · 传播学系'),makeFact(0,'交情','合作导师，学术交流与合作频繁'),makeFact(4,'履历','长期研究新闻传播与智能传播'),makeFact(4,'爱好','阅读社会科学书籍'),makeFact(1,'风格','逻辑清晰、自然、善用具体案例'),makeFact(5,'任务','关注人工智能与青年文化互动研究')].map(f=>({...f,source:'示例资料 · 已确认（虚构）'}));
 const b=p('陈一禾','活动策划 · 品牌传播','项目伙伴','关注品牌传播、活动组织与公众表达（虚构演示人物）');b.tags=['品牌传播','活动合作'];b.docs=[{id:id(),title:'工作记录 · 示例',source:'虚构演示材料',createdAt:now(),text:'我更喜欢简洁直接的方案，希望活动策划能够明确负责人、执行节点与交付标准。平时关注品牌传播和活动效果。'}];b.facts=[makeFact(0,'职位','活动策划'),makeFact(4,'专长','品牌传播和活动策划'),makeFact(1,'详简','希望沟通简洁、结果明确')].map(f=>({...f,source:'示例资料 · 已确认（虚构）'}));
 const c=p('周闻溪','学生 · 产品设计','团队成员','偏好产品设计、交互与技术实践（虚构演示人物）');c.tags=['产品设计','学生'];c.docs=[{id:id(),title:'个人简介 · 示例',source:'虚构演示材料',createdAt:now(),text:'我是产品设计方向的学生，正在学习前端开发。我喜欢把复杂问题拆解成可以测试的小任务，近期希望完成一个能真正使用的网站项目。'}];c.facts=[makeFact(0,'职位','学生 · 产品设计方向'),makeFact(4,'专长','产品设计与前端开发学习'),makeFact(5,'任务','完成可运行的网站项目')].map(f=>({...f,source:'示例资料 · 已确认（虚构）'}));
-return {people:[a,b,c],selected:a.id,version:1,seeded:true};
+const rosterSeed=()=>{try{return (globalThis.XWObsidian&&globalThis.XWObsidian.roster&&globalThis.XWObsidian.roster())||[]}catch{return []}};
+return {people:[a,b,c,...rosterSeed()],selected:a.id,version:1,seeded:true,rosterVersion:(globalThis.XWObsidian&&globalThis.XWObsidian.VERSION)||''};
 }
 let db;
 try{const raw=localStorage.getItem(KEY);db=raw?JSON.parse(raw):demo();if(!Array.isArray(db.people))throw Error('bad');}catch{db=demo();d1MainReadFailure=true}
 let state={busy:false,outputKind:'context',view:'intake',detail:false,query:'',promptOutput:'',task:'发言稿',mode:'author',lastTask:'',taskText:'',topicNote:'',dialog:null,factsFilter:'confirmed'};
 function save(){try{if(d1MainReadFailure)throw Error('主库读取异常，原文保留，请先备份');if(d1Controller){db=d1Controller.legacySave(db)}else localStorage.setItem(KEY,JSON.stringify(db));d1LegacyFailure='';return true}catch(e){d1LegacyFailure='保存未完成：'+e.message;try{db=JSON.parse(localStorage.getItem(KEY))}catch{}notify(d1LegacyFailure);Promise.resolve().then(()=>{d1LegacyFailure=''});return false}}
 try{if(!localStorage.getItem(KEY))save()}catch{}
+/* 示例人物名册：老库里没有就补一次，只在版本变化时补，不会覆盖或删除用户已有的人物。 */
+function seedRoster(){
+ const api=globalThis.XWObsidian;if(!api||!api.roster)return 0;
+ const version=api.VERSION;if(!version||db.rosterVersion===version)return 0;
+ let list=[];try{list=api.roster()}catch{return 0}
+ if(!list.length)return 0;
+ const have=new Set(db.people.map(p=>p.name));
+ const add=list.filter(p=>!have.has(p.name));
+ if(add.length)db.people.push(...add);
+ db.rosterVersion=version;
+ save();
+ return add.length;
+}
 const person=()=>db.people.find(p=>p.id===db.selected)||null;
 const everyFact=()=>db.people.reduce((v,p)=>v+p.facts.length,0);
 const everyDoc=()=>db.people.reduce((v,p)=>v+p.docs.length,0);
@@ -44,6 +58,20 @@ const btn=(action,label,variant='aud-mini',more='')=>`<button class="${variant}"
 function selectPerson(){return `<div class="work-selector"><span>当前人物</span><select class="field-select" id="personSelect" aria-label="选择人物">${db.people.map(p=>`<option value="${attr(p.id)}" ${p.id===db.selected?'selected':''}>${esc(p.name)} · ${esc(p.role||'未设身份')}</option>`).join('')}</select></div>`}
 function empty(title,desc,act=''){return `<div class="empty"><strong>${esc(title)}</strong><p>${esc(desc)}</p>${act?`<div style="margin-top:12px">${act}</div>`:''}</div>`}
 function emptyPeople(){return section('人物库','每个人物拥有独立的语料、画像、档案和长期记忆。',empty('还没有人物','创建第一位人物，开始建立独立资料空间。',btn('add-person','＋ 创建人物','cta')))}
+/* 结构化背景：老人物没有 meta，就不用渲染这一块，保证兼容。 */
+function metaBlock(p){
+ if(!p.meta)return '';
+ const head=[p.meta.school,p.meta.dept,p.meta.major,p.meta.degree].filter(Boolean).join(' · ');
+ const edu=(p.meta.edu||[]).map(e=>esc([e.period,e.school,e.dept,e.major,e.degree].filter(Boolean).join(' · '))).join('<br>');
+ const exp=(p.meta.exp||[]).map(e=>esc([e.period,e.org,e.role,e.note].filter(Boolean).join(' · '))).join('<br>');
+ const stack=(p.meta.stack||[]).map(s=>`<span class="aud-chip">${esc(s)}</span>`).join('');
+ let out='';
+ if(head||edu)out+=`<div class="aud-sub">教育背景</div><div class="small-note" style="line-height:1.9">${head?esc(head):''}${head&&edu?'<br>':''}${edu}</div>`;
+ if(exp)out+=`<div class="aud-sub">实习 / 工作经历</div><div class="small-note" style="line-height:1.9">${exp}</div>`;
+ if(stack)out+=`<div class="aud-sub">技术栈</div><div class="tag-wrap">${stack}</div>`;
+ if(p.meta.note)out+=`<div class="aud-sub">备注</div><p class="muted" style="font-size:13px;line-height:1.8">${esc(p.meta.note)}</p>`;
+ return out;
+}
 function renderLibrary(){let out=hero('人物库','为不同的人积累语料、归档信息与表达偏好。像智言的受众画像一样，每个人都是一份独立、可回溯的长期资产。',summaryStats());
 if(!db.people.length)return out+emptyPeople();
 if(state.detail&&person()){
@@ -51,13 +79,13 @@ let p=person();const docN=p.docs.length,con=p.facts.filter(f=>f.confirmed).lengt
 out+=`<div class="aud-head"><button class="aud-back" data-action="back">← 返回人物库</button><div style="flex:1"><div class="detail-title">${esc(p.name)} ${p.demo?'<span class="pill warn">虚构示例</span>':''}</div><div class="detail-meta">${esc(p.role||'未填写身份')} · ${esc(p.relation||'未设置关系')} · 更新于 ${fmt(p.updatedAt||p.createdAt)}</div></div>${btn('edit-person','编辑资料','cta secondary')}${btn('go-secretary','为此人写作','cta')}</div>`;
 out+=`<div class="page-stack"><div class="split detail-split">`;
 out+=section(`语料 <span class="aud-badge">${docN} 份</span>`,'保留智言受众画像的语料清单交互。支持粘贴文本及 TXT、MD、CSV、JSON、DOCX、PDF、PPTX 本地提取；复杂 PDF、扫描件与图片文字可能无法完整识别。',`<div class="aud-upload-row">${btn('add-text','＋ 粘贴语料','aud-upload-btn')}${btn('upload-text','上传 Word / PDF / PPT / 文本','aud-upload-btn')}${btn('analyze','AI 提取人物线索','aud-upload-btn')}</div><div class="aud-drop" id="fileDrop">拖入 DOCX / PDF / PPTX / TXT 等文件，或点击上传；分析前请确认资料使用授权</div><div class="aud-sub">语料清单</div>${docN?p.docs.map(d=>`<div class="aud-doc"><div class="aud-doc-main"><div class="aud-doc-name">${esc(d.title)}</div><div class="aud-doc-meta">${esc(d.source||'未标注来源')} · ${countChar(d.text)} 字 · ${fmt(d.createdAt)}</div></div><div class="aud-doc-actions"><button class="aud-mini" data-action="show-doc" data-id="${attr(d.id)}">查看</button><button class="aud-mini danger" data-action="delete-doc" data-id="${attr(d.id)}">删除</button></div></div>`).join(''):empty('暂无语料','添加第一份资料后，可以进行本地统计及带原文证据的 AI 提取。')}`,btn('go-profile','查看此人画像','aud-mini',`data-id="${attr(p.id)}"`));
-out+=section('人物概览 <span class="aud-badge ok">独立档案</span>','个人基础资料与已记录的喜好。AI 推断须经本人或资料管理者确认后，才适合长期使用。',`<div class="snapshot-grid"><div class="snapshot"><div class="num">${docN}</div><div class="label">原始语料</div></div><div class="snapshot"><div class="num">${p.facts.length}</div><div class="label">档案信息</div></div><div class="snapshot"><div class="num">${con}</div><div class="label">已确认</div></div><div class="snapshot"><div class="num">${p.facts.filter(f=>f.pinned&&f.confirmed).length}</div><div class="label">长期记忆</div></div></div><div class="aud-sub">个人简介</div><p class="muted" style="font-size:13px;line-height:1.8">${esc(p.desc||'尚未添加简介')}</p><div class="aud-sub">人物标签</div><div class="tag-wrap">${(p.tags||[]).length?p.tags.map(t=>`<span class="aud-chip">${esc(t)}</span>`).join(''):'<span class="muted" style="font-size:12px">暂无标签</span>'}</div>`,btn('go-profile','查看此人档案与画像','aud-mini',`data-id="${attr(p.id)}"`));
+out+=section('人物概览 <span class="aud-badge ok">独立档案</span>','个人基础资料与已记录的喜好。AI 推断须经本人或资料管理者确认后，才适合长期使用。',`<div class="snapshot-grid"><div class="snapshot"><div class="num">${docN}</div><div class="label">原始语料</div></div><div class="snapshot"><div class="num">${p.facts.length}</div><div class="label">档案信息</div></div><div class="snapshot"><div class="num">${con}</div><div class="label">已确认</div></div><div class="snapshot"><div class="num">${p.facts.filter(f=>f.pinned&&f.confirmed).length}</div><div class="label">长期记忆</div></div></div><div class="aud-sub">个人简介</div><p class="muted" style="font-size:13px;line-height:1.8">${esc(p.desc||'尚未添加简介')}</p>${metaBlock(p)}<div class="aud-sub">人物标签</div><div class="tag-wrap">${(p.tags||[]).length?p.tags.map(t=>`<span class="aud-chip">${esc(t)}</span>`).join(''):'<span class="muted" style="font-size:12px">暂无标签</span>'}</div>`,btn('go-profile','查看此人档案与画像','aud-mini',`data-id="${attr(p.id)}"`));
 out+=`</div>`;
 out+=section('人物画像 <span class="aud-badge">量化信息</span>','沿用智言“画像结论 + 证据回溯”方式。当前版本提供可复现的信息覆盖统计，不输出虚假的人格分数。',quickProfile(p),btn('go-profile','进入完整画像 →','aud-mini',`data-id="${attr(p.id)}"`));
 out+='</div>';return out;
 }
-let filtered=db.people.filter(p=>[p.name,p.role,p.relation,p.desc,...(p.tags||[])].join(' ').toLowerCase().includes(state.query.toLowerCase()));
-out+=section('人物库 <span class="aud-badge">长期资产 · 本机浏览器</span>','每个人物是独立的语料集合、结构化档案与记忆。点击人物卡片进入详情；示例人物均为虚构资料。',`<div class="toolbar"><input class="field search-field" id="searchPerson" placeholder="搜索姓名、身份或标签…" value="${attr(state.query)}"><div class="toolbar-right">${btn('add-person','＋ 新建人物','cta')}${btn('export','导出数据','cta secondary')}</div></div><div class="aud-grid">${filtered.map(p=>`<div class="aud-card" data-action="open-person" data-id="${attr(p.id)}" tabindex="0" role="button"><button class="aud-card-del" data-action="delete-person" data-id="${attr(p.id)}" aria-label="删除人物">×</button><div class="aud-card-avatar">${esc(p.name[0]||'人')}</div><div class="aud-card-name">${esc(p.name)}</div><div class="aud-card-meta">${esc(p.role||'尚未设置身份')}<br>${esc(p.relation||'未设置关系')}</div><div class="aud-card-badges">${p.demo?'<span class="aud-badge warn">示例人物</span>':''}<span class="aud-badge ${p.facts.some(f=>f.confirmed)?'ok':''}">${p.facts.some(f=>f.confirmed)?'已建档案':'待完善'}</span>${(p.tags||[]).slice(0,2).map(t=>`<span class="aud-badge">${esc(t)}</span>`).join('')}</div><div class="aud-card-foot"><span>${p.docs.length} 份语料 · ${p.facts.length} 条信息</span><button class="aud-mini xwp-card-link" data-action="go-profile" data-id="${attr(p.id)}" type="button">查看画像 →</button></div></div>`).join('')}<button class="aud-new-card" data-action="add-person"><span class="aud-new-card-plus">＋</span><span>新建人物档案</span></button></div>`);
+let filtered=db.people.filter(p=>[p.name,p.role,p.relation,p.desc,...(p.tags||[]),p.meta?.school||'',p.meta?.dept||'',p.meta?.major||'',...(p.meta?.keywords||[]),...(p.meta?.stack||[])].join(' ').toLowerCase().includes(state.query.toLowerCase()));
+out+=section('人物库 <span class="aud-badge">长期资产 · 本机浏览器</span>','每个人物是独立的语料集合、结构化档案与记忆。点击人物卡片进入详情；示例人物均为虚构资料。',`<div class="toolbar"><input class="field search-field" id="searchPerson" placeholder="搜索姓名、身份或标签…" value="${attr(state.query)}"><div class="toolbar-right">${btn('add-person','＋ 新建人物','cta')}${btn('export-obsidian','导出 Obsidian 知识库','cta secondary')}${btn('export','导出数据','cta secondary')}</div></div><div class="aud-grid">${filtered.map(p=>`<div class="aud-card" data-action="open-person" data-id="${attr(p.id)}" tabindex="0" role="button"><button class="aud-card-del" data-action="delete-person" data-id="${attr(p.id)}" aria-label="删除人物">×</button><div class="aud-card-avatar">${esc(p.name[0]||'人')}</div><div class="aud-card-name">${esc(p.name)}</div><div class="aud-card-meta">${esc(p.role||'尚未设置身份')}<br>${esc(p.relation||'未设置关系')}</div><div class="aud-card-badges">${p.demo?'<span class="aud-badge warn">示例人物</span>':''}<span class="aud-badge ${p.facts.some(f=>f.confirmed)?'ok':''}">${p.facts.some(f=>f.confirmed)?'已建档案':'待完善'}</span>${(p.tags||[]).slice(0,2).map(t=>`<span class="aud-badge">${esc(t)}</span>`).join('')}</div><div class="aud-card-foot"><span>${p.docs.length} 份语料 · ${p.facts.length} 条信息</span><button class="aud-mini xwp-card-link" data-action="go-profile" data-id="${attr(p.id)}" type="button">查看画像 →</button></div></div>`).join('')}<button class="aud-new-card" data-action="add-person"><span class="aud-new-card-plus">＋</span><span>新建人物档案</span></button></div>`);
 out+=`<div class="aud-footnote">本页面的数据仅保存在当前浏览器中，不会自动同步到其他设备；已支持连接 DeepSeek 进行 AI 人物分析；任何自动提取的信息仍需人工核验。</div>`;return out;
 }
 function dimensionScores(p){return DIMS.map(([d,fields],i)=>{const found=new Set(p.facts.filter(f=>f.confirmed&&f.dim===i).map(f=>f.key));return {name:d,pct:Math.round(fields.filter(x=>found.has(x)).length/fields.length*100),count:fields.filter(x=>found.has(x)).length,total:fields.length}})}
@@ -280,6 +308,16 @@ case 'generate-context':state.taskText=document.getElementById('taskText')?.valu
 case 'clear-context':state.promptOutput='';state.outputKind='context';render();break;case 'copy-context':copyText(state.promptOutput);break;case 'download-context':download(`小王_${person().name}_${state.outputKind==='ai'?'AI文稿':'秘书任务'}.txt`,state.promptOutput);break;
 case 'dark':case 'light':switchTheme(act);break;
 case 'export':download('小王_人物档案数据备份.json',JSON.stringify(db,null,2),'application/json;charset=utf-8');notify('已导出 JSON 数据');break;
+case 'export-obsidian':{
+ const api=globalThis.XWObsidian;
+ if(!api||!api.build){notify('导出模块没有加载，请刷新页面后重试');break}
+ try{
+  const {files,stats}=api.build(db.people);
+  const bytes=api.zip(files);
+  download('小王知识库_Obsidian.zip',bytes,'application/zip');
+  notify(`已导出 ${stats.people} 人 / ${files.length} 篇笔记；解压后把「小王知识库」文件夹拖进 Obsidian 库即可，关系会自动成网`);
+ }catch(err){notify('导出失败：'+err.message)}
+ break}
 case 'import':document.getElementById('importInput').click();break;
 case 'remove-demos':{if(!confirm('确定删除全部虚构示例人物及其数据？你自己创建的人物不会受影响。'))break;db.people=db.people.filter(p=>!p.demo);db.selected=db.people[0]?.id||null;save();state.detail=false;closeModal();render();notify('虚构示例已清理');break}
 }
@@ -1113,5 +1151,9 @@ document.addEventListener('click',e=>{if(e.target.closest('[data-c1-corpus]')){s
 /* 只读调试钩子：验收时可在控制台执行 __xw.h5().sources 查看渡口记录，不暴露写入接口。 */
 window.__xw={presets:{people:()=>db.people.map(p=>({id:p.id,name:p.name})),model:()=>({stamp:modelSettings.endpoint+'|'+modelSettings.model,label:modelSettings.model+' · '+new URL(modelSettings.endpoint).host,ready:!!modelSettings.key}),generate:personId=>generateManagedProfile({personId,automatic:true})},refresh:render,show:view=>{if(!['library','profile','secretary','intake','matters','relations'].includes(view))return false;state.view=view;render();return true},db:()=>db,h5:()=>h5UI._debug?.(),view:()=>state.view,m1:h5UI};
 d1Controller=XWInboxUI.create({getDB:()=>db,setDB:v=>{db=v},escape:esc,render,download:(...args)=>download(...args)});
-syncSettings();render();
+let seededNow=0;try{seededNow=seedRoster()}catch(e){seededNow=0}
+syncSettings();if(seededNow)state.view='library';render();
+if(seededNow)notify('已加入 '+seededNow+' 位示例人物；人物库里可以「导出 Obsidian 知识库」');
+/* 本机应用诊断：把原生桥暴露给页面外层脚本，仅在本机 App 内存在，浏览器里是无副作用的空操作。 */
+try{if(typeof window!=='undefined')window.XWNativeBridge=NativeBridge}catch(e){}
 })();

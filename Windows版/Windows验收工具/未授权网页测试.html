@@ -1,0 +1,3 @@
+<!doctype html><meta charset="utf-8"><title>未授权网页访问测试（仅虚构服务）</title><h1>未授权网页测试</h1><p>先确认验收服务及已配对小王均在线，再从资源管理器双击此页（file://）。本页没有任何配对令牌。</p><button id="run">尝试读取和调用</button><pre id="log"></pre><script>
+document.querySelector('#run').onclick=async()=>{const log=document.querySelector('#log');log.textContent='';for(const [path,options] of [['/api/pending',{}],['/api/capture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request_id:crypto.randomUUID(),source_id:'private-chat',days:2})}]]){try{const r=await fetch('http://127.0.0.1:18925'+path,options);log.textContent+=path+' 意外获得可读响应：'+r.status+'（不通过，请回传）\n'}catch{log.textContent+=path+'：浏览器未获得可读响应。需结合在线服务及接口验证日志确认拒绝原因。\n'}}};
+</script>

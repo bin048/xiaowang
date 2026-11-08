@@ -6,14 +6,23 @@
 
 <p align="center">
   <a href="https://xiaowang-ai-memory.app.workbuddy.host/?sharecode=CJZIJV4FEN"><img src="https://img.shields.io/badge/在线体验-网页版%20直开-2ee6a0?style=flat-square" alt="在线体验"></a>
-  <img src="https://img.shields.io/badge/自动化用例-46%2F46-2ee6a0?style=flat-square" alt="46/46">
+  <img src="https://img.shields.io/badge/自动化用例-52%2F52-2ee6a0?style=flat-square" alt="52/52">
   <img src="https://img.shields.io/badge/网络-仅本机回环-7aa2ff?style=flat-square" alt="本地优先">
-  <img src="https://img.shields.io/badge/平台-macOS%20%2B%20Electron-e9ecef?style=flat-square" alt="macOS">
+  <img src="https://img.shields.io/badge/平台-macOS%20%2B%20Windows-e9ecef?style=flat-square" alt="macOS + Windows">
 </p>
 
 <p align="center">
   <img src="文档/截图/01-信息渡口-人物预设.png" alt="信息渡口与人物预设" width="820">
 </p>
+
+### 两个平台版本，一套业务契约
+
+| 目录 | 平台 | 怎么跑 | 说明 |
+|---|---|---|---|
+| **仓库根目录** | macOS 11+ | `打开小王.command` | 主线版本：人物预设面板、语料 App（WKWebView 融合）、**Obsidian 知识库导出**等最新功能 |
+| [`Windows版/`](Windows版/) | Windows 11 | `安装悬浮依赖.cmd` → `一键启动.cmd` | 真机验收快照：同样的悬浮球 / 本地服务 / 单文件工作台，启动器与数据目录适配 Windows |
+
+两边的本地服务接口、SQLite 队列契约、H5 业务逻辑同源；差异只在启动脚本与运行时路径。网页版从任一平台都能构建（见 §7.1）。
 
 ---
 
@@ -50,7 +59,7 @@
 
 ---
 
-## 3. 三个有区分度的设计
+## 3. 四个有区分度的设计
 
 ### 3.1 归属固化在事件里，而不是「当前选择」里
 
@@ -71,6 +80,29 @@
 <p align="center">
   <img src="文档/截图/02-人物画像.png" alt="人物画像" width="820">
 </p>
+
+### 3.4 人物库一键导出「可直接拖进 Obsidian」的知识库
+
+人物库左下角的 **导出 Obsidian 知识库** 会把当前所有人物编译成一个 Obsidian Vault（zip，解压只有一个顶层文件夹）：
+
+```
+小王知识库/
+├── 00-索引/人物总览.md     ← MOC：按学校分组 + 全人物表 + 按技能 / 按关系找人
+├── 人物/姓名.md            ← YAML 属性、教育/经历表格、关系网络、档案、语料摘录
+├── 机构/ 学部/ 专业/ 技能/ 关系/   ← 每个实体一页，页内反查所有相关人物
+├── 关系画布.canvas         ← JSON Canvas，打开就是可拖动的实体关系图
+└── README.md
+```
+
+设计取舍：
+
+- **全部用 `[[双链]]`**：A 提到 B，导出时自动把反向边补进 B 的笔记，反链天然成对，图谱一打开就连成网；
+- **关键词走 `#标签`**（`tags: [人物, 学历/硕士, 学校/清华大学]`），不建几十个一行小笔记把图谱切碎；
+- **技能只给 ≥2 人共用的建页**，冷门工具留成行内代码；
+- 时间字段做归一化：老数据里的毫秒时间戳与 ISO 字符串都能正确渲染成 `YYYY-MM-DD`；
+- 自写 store-only zip 同时写 Info-ZIP `0x7075` Unicode Path 扩展字段，macOS `unzip` / Windows 资源管理器 / 7-Zip 解出的中文名都不乱码。
+
+示例包见 [`文档/示例/小王知识库_示例_Obsidian.zip`](文档/示例/小王知识库_示例_Obsidian.zip)（20 位全虚构人物，解压后整只文件夹拖进 Obsidian 库即可）。自动化断言见 `测试/obsidian-vault.cjs`。
 
 ---
 
@@ -119,11 +151,12 @@
 
 ```
 源码/            app.js · processing.js · presets-ui.js · delivery-ui.js · receiver-ui.js
-                memory-core.js · build.py · baseline.html（构建基线）
+                memory-core.js · obsidian-vault.js（知识库导出）· build.py · baseline.html（构建基线）
 Electron悬浮入口/ main.js · pet.html · composer.html · transport.js · preload.js
-Windows本地服务/ 本地投递服务.py
-测试/            11 项主流程 · 8 项异常路径补测 · 服务回归 · 桌面重启 · 截图脚本
-文档/            使用说明 · 改动与验收说明 · 测试日志 · 截图
+Windows本地服务/ 本地投递服务.py（目录名沿用历史，macOS 与 Windows 共用同一份服务）
+测试/            11 项主流程 · 8 项异常路径补测 · 知识库导出 · 服务回归 · 桌面重启 · 截图脚本
+文档/            使用说明 · 改动与验收说明 · 测试日志 · 截图 · 示例知识库
+Windows版/       Windows 11 版：启动器（.cmd/.ps1）· 启动联动.py · 同构的源码/测试/文档
 ```
 
 ---
@@ -169,6 +202,19 @@ python3 源码/build.py --web     # 产出 ../小王网页版/index.html（含 P
 - **离线**：注册了 Service Worker，首次打开后断网仍可进入（联网时始终取新版本）。
 - **实现方式**：`build.py` 只对网页产物注入 `window.XW_WEB=true` 与 `源码/web-adapt.css`（移动端安全区、导航横滑、输入字号防缩放、`100dvh`）；桌面构建不含这些，行为完全不变。
 
+### 7.2 Windows 版（Windows 11）
+
+见 [`Windows版/README.md`](Windows版/README.md)。最短路径：
+
+```
+安装悬浮依赖.cmd   # 首次一次：npm ci + 下载 Electron 运行时（需联网）
+一键启动.cmd       # 起本地服务 → 拉起悬浮球 → 打开工作台
+```
+
+- 退出用 `关闭全部.cmd`（`仅关闭本地服务.cmd` / `重开悬浮球.cmd` 可按需单独控制）；
+- 运行数据在 `%LOCALAPPDATA%\小王M1.1运行数据`，支持 `--data-dir` / `--port`；
+- 仓库不含 `node_modules` 与 Electron 二进制，由 `安装悬浮依赖.cmd` 按本机平台下载。
+
 ---
 
 ## 8. 测试与证据
@@ -182,7 +228,8 @@ python3 源码/build.py --web     # 产出 ../小王网页版/index.html（含 P
 | 悬浮球设置入口地址断言 | **1 / 1** |
 | 服务回归 `test_service.py` | **8 / 8** |
 | 桌面退出/重开 `test_desktop_restart.py`（含连续三次 SIGTERM 重开） | **18 / 18** |
-| **合计** | **46 / 46 通过** |
+| Obsidian 导出 `obsidian-vault.cjs`（双链闭环、画布、zip 中文名、数字时间戳兼容） | **6 / 6** |
+| **合计** | **52 / 52 通过** |
 
 复现：
 
@@ -192,6 +239,7 @@ XW_TEST_ELECTRON=<Electron 可执行文件> \
 node 测试/person-presets.cjs        # 11 项主流程
 node 测试/presets-followup.cjs      # 8 项异常路径
 node 测试/presets-entry.cjs         # 入口地址断言
+node 测试/obsidian-vault.cjs        # 知识库导出（无需 Electron / Playwright）
 
 python3 -m unittest discover -s 测试 -p test_service.py -v
 XW_TEST_ELECTRON=<Electron> python3 -m unittest discover -s 测试 -p test_desktop_restart.py -v
