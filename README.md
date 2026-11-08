@@ -5,7 +5,7 @@
 > *A local-first personal memory workspace. Files dropped on a desktop companion are bound to a specific person at creation time, archived transactionally, and turned into an evidence-cited profile — never silently re-attributed to someone else.*
 
 <p align="center">
-  <a href="https://xiaowang-ai-memory.app.workbuddy.host/?sharecode=CJZIJV4FEN"><img src="https://img.shields.io/badge/在线演示-打开页面-2ee6a0?style=flat-square" alt="在线演示"></a>
+  <a href="https://xiaowang-ai-memory.app.workbuddy.host/?sharecode=CJZIJV4FEN"><img src="https://img.shields.io/badge/在线体验-网页版%20直开-2ee6a0?style=flat-square" alt="在线体验"></a>
   <img src="https://img.shields.io/badge/自动化用例-46%2F46-2ee6a0?style=flat-square" alt="46/46">
   <img src="https://img.shields.io/badge/网络-仅本机回环-7aa2ff?style=flat-square" alt="本地优先">
   <img src="https://img.shields.io/badge/平台-macOS%20%2B%20Electron-e9ecef?style=flat-square" alt="macOS">
@@ -151,6 +151,23 @@ Electron 运行时的查找顺序：`运行数据/m11-runtime/electron-dist/…`
 ```bash
 XW_ELECTRON=/Applications/Electron.app/Contents/MacOS/Electron python3 运行Mac版.py
 ```
+
+### 7.1 网页版（手机 / 任意浏览器直接打开）
+
+同一份源码可以构建出纯静态网页版，无需安装、无需本机服务，手机浏览器直接可用：
+
+```bash
+python3 源码/build.py --web     # 产出 ../小王网页版/index.html（含 PWA 清单与离线兜底）
+```
+
+在线体验：<https://xiaowang-ai-memory.app.workbuddy.host/?sharecode=CJZIJV4FEN>
+（作品介绍页：同域名 `/about.html`）
+
+- **能在网页/手机上做什么**：信息渡口（粘贴文本、上传 Word/PDF/PPT，浏览器内解析）、人物库与语料、人物画像、事项推进、关系处理、秘书工作流、完整备份导出/导入。模型相关功能需在「设置」里填自己的 OpenAI 兼容 Key。
+- **不能做什么**：桌面悬浮球的「拖进来就自动归档」需要本机 Electron + 本地服务，网页版没有这一段，投递面板会换成网页版说明；跨设备不会自动同步。
+- **数据在哪**：`localStorage` + `IndexedDB`，按浏览器隔离，不上传任何服务器。换设备用「设置 → 导出全部数据」，在新设备「导入 JSON」。
+- **离线**：注册了 Service Worker，首次打开后断网仍可进入（联网时始终取新版本）。
+- **实现方式**：`build.py` 只对网页产物注入 `window.XW_WEB=true` 与 `源码/web-adapt.css`（移动端安全区、导航横滑、输入字号防缩放、`100dvh`）；桌面构建不含这些，行为完全不变。
 
 ---
 

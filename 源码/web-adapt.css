@@ -1,0 +1,23 @@
+/* 网页版适配层：只在 build.py --web 产物里注入，桌面构建不含本文件。 */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{-webkit-tap-highlight-color:transparent;overscroll-behavior-y:contain}
+
+@media(max-width:760px){
+ /* 刘海屏与底部手势区 */
+ .header{padding:calc(9px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) 11px calc(14px + env(safe-area-inset-left))}
+ main{padding-bottom:calc(40px + env(safe-area-inset-bottom))}
+ /* 顶部导航可横滑，隐藏滚动条避免压住按钮 */
+ .tab-switch{scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity}
+ .tab-switch::-webkit-scrollbar{display:none;height:0}
+ .tab-btn{scroll-snap-align:center}
+ /* iOS 聚焦输入框会缩放整页，字号补到 16px 规避 */
+ input,textarea,select{font-size:16px}
+ /* 触控目标不小于 40px */
+ .tab-btn,.aud-mini{min-height:40px}
+}
+
+/* iOS Safari 的地址栏伸缩会让 100vh 溢出，优先用动态视口单位 */
+@supports(height:100dvh){
+ main{min-height:calc(100dvh - 70px)}
+ @media(max-width:640px){.settings-pop{max-height:calc(100dvh - 80px)}}
+}
