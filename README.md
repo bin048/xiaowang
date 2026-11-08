@@ -137,9 +137,9 @@ python3 源码/build.py
 ./关闭小王组件.command
 ```
 
-首次启动会在数据目录生成 `本机配对.json`（本地凭据，已被 `.gitignore` 排除）。页面地址固定为 `http://127.0.0.1:8915/小王.html`。
+首次启动会在 `运行数据/` 下生成配对凭据与队列（已被 `.gitignore` 排除，不随代码分发）。页面地址固定为 `http://127.0.0.1:8915/小王.html`。
 
-若 Electron 不在默认位置，用环境变量指定：
+Electron 运行时的查找顺序：`运行数据/m11-runtime/electron-dist/…` → `/Applications/Electron.app` → `Electron悬浮入口/node_modules/electron/dist/…`；都没有时用环境变量指定：
 
 ```bash
 XW_ELECTRON=/Applications/Electron.app/Contents/MacOS/Electron python3 运行Mac版.py
